@@ -1,0 +1,14 @@
+# OS / 편집기
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# 로그 / 임시
+*.log
+_out.txt
+tools/_*.js
+
+# 의존성 (혹시 생길 경우)
+node_modules/

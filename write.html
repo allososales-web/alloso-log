@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>매장 기록하기 · A-log</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand"><img src="assets/alloso-logo.png" alt="Alloso" class="alloso-logo-dark" /><span style="margin-left:8px;">매장 기록하기</span></div>
+      <a class="nav-link" href="index.html">← 처음으로</a>
+    </div>
+
+    <div id="banner" class="banner"></div>
+
+    <div class="card">
+      <h2>1. 매장과 기록자를 선택하세요</h2>
+      <p class="hint">기록자는 익명으로 저장됩니다. 로그인/가입이 필요 없습니다.</p>
+      <div class="row">
+        <div class="field">
+          <label for="store">매장명</label>
+          <select id="store"></select>
+        </div>
+        <div class="field">
+          <label for="writer">기록자 (익명)</label>
+          <select id="writer">
+            <option value="익명 매니저">익명 매니저</option>
+            <option value="익명 직원">익명 직원</option>
+            <option value="익명 A">익명 A</option>
+            <option value="익명 B">익명 B</option>
+            <option value="익명 C">익명 C</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. 오늘 하루를 말해주세요</h2>
+      <p class="hint">
+        마이크 버튼을 누르고 말하면 자동으로 글자로 바뀝니다.
+        어떤 일이 있었는지, 부족했던 점, 이렇게 개선했으면 하는 의견을 편하게 말씀하세요.
+      </p>
+
+      <div class="btn-row" style="margin-bottom:14px;">
+        <button id="micBtn" class="mic-btn" type="button">
+          <span class="ico">🎙️</span><span id="micLabel">음성 녹음 시작</span>
+        </button>
+        <button id="clearBtn" class="btn btn-ghost" type="button">내용 지우기</button>
+      </div>
+
+      <div id="speechUnsupported" class="banner info" style="display:none;">
+        이 브라우저는 음성인식을 지원하지 않습니다. 아래 칸에 직접 입력하셔도 됩니다. (크롬 브라우저를 권장합니다.)
+      </div>
+
+      <div class="field" style="margin-bottom:6px;">
+        <label for="text">기록 내용 (확인 후 수정 가능)</label>
+        <textarea id="text" placeholder="여기에 말한 내용이 글자로 표시됩니다. 직접 입력/수정도 가능합니다."></textarea>
+      </div>
+      <p class="hint" id="charCount" style="text-align:right; margin:0;">0자</p>
+    </div>
+
+    <div class="card">
+      <h2>3. 확인하고 저장하기</h2>
+      <p class="hint" id="saveHint"></p>
+      <button id="saveBtn" class="btn btn-primary btn-lg btn-block" type="button">저장하기</button>
+    </div>
+
+    <p class="footer-note">음성 파일은 저장되지 않으며, 변환된 텍스트만 보관됩니다.</p>
+  </div>
+
+  <script src="config.js?v=9"></script>
+  <script src="storage.js?v=11"></script>
+  <script>
+    const banner = document.getElementById("banner");
+    const storeSel = document.getElementById("store");
+    const writerSel = document.getElementById("writer");
+    const textArea = document.getElementById("text");
+    const micBtn = document.getElementById("micBtn");
+    const micLabel = document.getElementById("micLabel");
+    const clearBtn = document.getElementById("clearBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const saveHint = document.getElementById("saveHint");
+    const charCount = document.getElementById("charCount");
+
+    // 매장 목록 채우기
+    let STORE_LIST = getStores();
+    function fillStoreOptions(list) {
+      const prev = storeSel.value;
+      storeSel.innerHTML = "";
+      list.forEach((s) => {
+        const o = document.createElement("option");
+        o.value = s; o.textContent = s;
+        storeSel.appendChild(o);
+      });
+      if (prev && list.includes(prev)) storeSel.value = prev;
+    }
+    fillStoreOptions(STORE_LIST);
+    if (hasBackend()) {
+      loadStoresAsync().then((list) => { STORE_LIST = list; fillStoreOptions(list); }).catch(() => {});
+    }
+
+    const lastStore = localStorage.getItem("girock_last_store");
+    const lastWriter = localStorage.getItem("girock_last_writer");
+    if (lastStore && STORE_LIST.includes(lastStore)) storeSel.value = lastStore;
+    if (lastWriter) {
+      const opt = [...writerSel.options].find((o) => o.value === lastWriter);
+      if (opt) writerSel.value = lastWriter;
+    }
+
+    function updateCharCount() {
+      charCount.textContent = textArea.value.trim().length.toLocaleString() + "자";
+    }
+    textArea.addEventListener("input", updateCharCount);
+
+    function refreshSaveHint() {
+      let base = hasBackend()
+        ? "저장하면 사업부의 구글 시트로 전송됩니다."
+        : "현재 구글 시트 연동 전이라, 이 브라우저에 임시 저장됩니다. (테스트 모드)";
+      const pend = pendingCount();
+      if (pend > 0) base += ` · 전송 대기 ${pend}건 (저장 시 함께 재전송 시도)`;
+      saveHint.textContent = base;
+    }
+    refreshSaveHint();
+
+    // 음성인식
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let recording = false;
+    let baseText = "";
+
+    if (!SR) {
+      document.getElementById("speechUnsupported").style.display = "block";
+      micBtn.disabled = true;
+    } else {
+      recognition = new SR();
+      recognition.lang = "ko-KR";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = (e) => {
+        let finalText = "", interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalText += t; else interim += t;
+        }
+        if (finalText) baseText = (baseText + " " + finalText).trim();
+        textArea.value = (baseText + " " + interim).trim();
+        updateCharCount();
+      };
+      recognition.onerror = (e) => {
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+          showBanner(banner, "err", "마이크 권한이 필요합니다. 브라우저 주소창의 마이크 아이콘에서 허용해주세요.");
+          stopRecording();
+        }
+      };
+      recognition.onend = () => { if (recording) { try { recognition.start(); } catch (_) {} } };
+    }
+
+    function startRecording() {
+      if (!recognition) return;
+      baseText = textArea.value.trim();
+      try { recognition.start(); } catch (_) {}
+      recording = true;
+      micBtn.classList.add("recording");
+      micLabel.textContent = "녹음 중... (누르면 종료)";
+      hideBanner(banner);
+    }
+    function stopRecording() {
+      recording = false;
+      if (recognition) { try { recognition.stop(); } catch (_) {} }
+      micBtn.classList.remove("recording");
+      micLabel.textContent = "음성 녹음 시작";
+    }
+
+    micBtn.addEventListener("click", () => { recording ? stopRecording() : startRecording(); });
+    clearBtn.addEventListener("click", () => { textArea.value = ""; baseText = ""; updateCharCount(); });
+
+    let saving = false;
+    saveBtn.addEventListener("click", async () => {
+      if (saving) return;
+      const text = textArea.value.trim();
+      if (!text) { showBanner(banner, "err", "기록 내용이 비어 있습니다. 음성으로 말하거나 직접 입력해주세요."); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      if (text.length < 5) { showBanner(banner, "err", "내용이 너무 짧습니다. 조금 더 자세히 기록해주세요."); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      if (recording) stopRecording();
+      saving = true;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner"></span> 저장 중...';
+      localStorage.setItem("girock_last_store", storeSel.value);
+      localStorage.setItem("girock_last_writer", writerSel.value);
+      try {
+        if (hasBackend() && pendingCount() > 0) { await flushPending(); }
+        const result = await saveRecord({ store: storeSel.value, writer: writerSel.value, text: text });
+        if (result.queued) {
+          showBanner(banner, "info", "지금 서버에 연결되지 않아 이 기기에 안전하게 보관했습니다. 인터넷이 되면 다음 저장 때 자동으로 전송됩니다.");
+        } else {
+          showBanner(banner, "ok", "저장되었습니다. 수고하셨습니다!");
+        }
+        textArea.value = ""; baseText = ""; updateCharCount(); refreshSaveHint();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err) {
+        showBanner(banner, "err", "저장에 실패했습니다: " + err.message);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } finally {
+        saving = false; saveBtn.disabled = false; saveBtn.textContent = "저장하기";
+      }
+    });
+  </script>
+</body>
+</html>

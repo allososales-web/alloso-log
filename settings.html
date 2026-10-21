@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#05070d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>A-log · 매장 설정</title>
+  <link rel="stylesheet" href="theme.css?v=20" />
+</head>
+<body>
+  <div class="mini-top">
+    <a class="back" href="index.html">← 처음으로</a>
+    <span class="title-sm" style="color:var(--cyan); letter-spacing:3px;">SETTINGS</span>
+    <a class="back" href="dashboard.html" style="text-decoration:none;">사업부</a>
+  </div>
+
+  <div class="hud" style="max-width:640px;">
+    <section class="panel" style="margin-top:8px;">
+      <p class="phead">매장 설정</p>
+      <p class="ai-lead">기록·분석에 사용할 매장 목록을 관리합니다. 변경사항은 구글 시트(공유)에 저장됩니다.</p>
+
+      <div class="tb-scope" style="margin:14px 0 6px;">
+        <input class="hud-input" id="newStore" placeholder="추가할 매장명 (예: 성수점)" style="flex:1 1 220px; width:auto;" />
+        <button class="btn btn-primary" id="addBtn" type="button">+ 추가</button>
+      </div>
+      <p class="status" id="hint" style="margin-top:0;"></p>
+
+      <div id="storeList" style="margin-top:12px;"></div>
+
+      <div class="btn-row" style="justify-content:flex-start; margin-top:16px;">
+        <button class="btn btn-primary" id="saveBtn" type="button">저장</button>
+        <button class="btn btn-ghost" id="resetBtn" type="button">기본값으로 초기화</button>
+      </div>
+    </section>
+
+    <!-- 서버 운영 시간 설정 -->
+    <section class="panel" style="margin-top:16px;">
+      <p class="phead">서버 운영 시간</p>
+      <p class="ai-lead">
+        시간대를 만들고 그 안에 매장을 넣어 적용합니다. 보고는 운영 시작 ~ 종료
+        <b>+ 마감 후 유예시간</b>까지만 가능합니다. 어떤 시간대에도 속하지 않은 매장은 제한 없이 보고할 수 있습니다.
+      </p>
+
+      <div id="slotList" style="margin-top:12px;"></div>
+
+      <div class="btn-row" style="justify-content:flex-start; margin-top:12px;">
+        <button class="btn btn-ghost" id="addSlotBtn" type="button">+ 시간대 추가</button>
+      </div>
+
+      <div class="btn-row" style="justify-content:flex-start; margin-top:14px; border-top:1px solid var(--line-soft); padding-top:14px;">
+        <button class="btn btn-primary" id="saveHoursBtn" type="button">운영 시간 저장</button>
+      </div>
+      <p class="status" id="hoursHint" style="margin-top:8px;"></p>
+    </section>
+
+    <section class="panel" style="margin-top:16px;">
+      <p class="phead">참고</p>
+      <p class="ai-lead" style="margin:0;">
+        구글 시트에 저장되므로 모든 담당자에게 동일하게 적용됩니다.
+        연동 전이라면 이 기기에만 저장됩니다.
+      </p>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="config.js?v=9"></script>
+  <script src="storage.js?v=11"></script>
+  <script>
+    // 접근 보호: 사업부와 동일 PIN
+    (function guard() {
+      const pin = (APP_CONFIG.dashboardPin || "").trim();
+      if (!pin) return; // 암호 미설정이면 누구나 열람
+      // 현재 PIN에 묶인 토큰이 일치할 때만 통과 (옛 '1' 플래그는 무효)
+      if (sessionStorage.getItem("girock_dash_ok") === "ok:" + pin) return;
+      sessionStorage.removeItem("girock_dash_ok");
+      location.replace("gate.html"); // 미인증이면 키패드 인증 화면으로
+      throw new Error("redirect-to-gate");
+    })();
+
+    const $ = (id) => document.getElementById(id);
+    const toast = $("toast");
+    let stores = getStores();
+
+    function showToast(type, msg) {
+      toast.className = "toast show " + type;
+      toast.textContent = msg;
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => (toast.className = "toast"), 2600);
+    }
+    function escapeHtml(s) {
+      return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function render() {
+      const box = $("storeList");
+      $("hint").textContent = `현재 ${stores.length}개 매장`;
+      if (!stores.length) {
+        box.innerHTML = '<div class="hud-empty">등록된 매장이 없습니다. 위에서 추가하세요.</div>';
+        return;
+      }
+      box.innerHTML = "";
+      stores.forEach((s, i) => {
+        const el = document.createElement("div");
+        el.className = "store-row";
+        el.innerHTML =
+          `<span class="store-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9l1-4h14l1 4M5 9v10h14V9M9 19v-5h6v5"/></svg></span>` +
+          `<span class="store-name">${escapeHtml(s)}</span>` +
+          `<button class="store-del" data-i="${i}" type="button" aria-label="삭제">✕</button>`;
+        box.appendChild(el);
+      });
+      box.querySelectorAll(".store-del").forEach((b) => b.addEventListener("click", () => {
+        stores.splice(+b.getAttribute("data-i"), 1);
+        render();
+      }));
+    }
+
+    function addStore() {
+      const v = $("newStore").value.trim();
+      if (!v) { showToast("err", "매장명을 입력하세요."); return; }
+      if (stores.includes(v)) { showToast("err", "이미 있는 매장입니다."); return; }
+      stores.push(v);
+      $("newStore").value = "";
+      render();
+      $("newStore").focus();
+    }
+
+    $("addBtn").addEventListener("click", addStore);
+    $("newStore").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addStore(); } });
+
+    $("saveBtn").addEventListener("click", async () => {
+      const btn = $("saveBtn");
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        stores = await saveStoresRemote(stores);
+        render();
+        showToast("ok", hasBackend() ? "구글 시트에 저장되었습니다. (모든 담당자 공유)" : "이 기기에 저장되었습니다.");
+      } catch (err) {
+        showToast("err", "저장 실패: " + err.message + " (이 기기에는 저장됨)");
+      } finally {
+        btn.disabled = false; btn.textContent = "저장";
+      }
+    });
+
+    $("resetBtn").addEventListener("click", async () => {
+      if (!confirm("매장 목록을 config.js 기본값으로 되돌릴까요?")) return;
+      resetStores();
+      stores = getStores();
+      render();
+      if (hasBackend()) { try { stores = await saveStoresRemote(stores); } catch (_) {} }
+      showToast("info", "기본값으로 초기화했습니다.");
+    });
+
+    /* ======================= 서버 운영 시간 ======================= */
+    let slots = []; // [{id,label,start,end,graceMin,stores:[]}]
+
+    function slotId() { return "slot-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+    function renderSlots() {
+      const box = $("slotList");
+      if (!slots.length) {
+        box.innerHTML = '<div class="hud-empty">시간대가 없습니다. 아래 “+ 시간대 추가”로 만드세요.</div>';
+        return;
+      }
+      box.innerHTML = "";
+      slots.forEach((slot) => {
+        const card = document.createElement("div");
+        card.className = "slot-card";
+        const storeChips = stores.map((s) => {
+          const on = (slot.stores || []).includes(s);
+          return `<label class="slot-store${on ? " on" : ""}"><input type="checkbox" data-slot="${slot.id}" data-store="${escapeHtml(s)}" ${on ? "checked" : ""}/> ${escapeHtml(s)}</label>`;
+        }).join("");
+        card.innerHTML =
+          `<div class="slot-head">` +
+            `<input class="hud-input slot-label" data-slot="${slot.id}" value="${escapeHtml(slot.label || "")}" placeholder="시간대 이름 (예: 일반 매장)" />` +
+            `<button class="store-del" data-del="${slot.id}" type="button" aria-label="시간대 삭제">✕</button>` +
+          `</div>` +
+          `<div class="slot-times">` +
+            `<label>시작 <input class="hud-input slot-time" type="time" data-slot="${slot.id}" data-k="start" value="${escapeHtml(slot.start || "09:00")}" /></label>` +
+            `<label>종료 <input class="hud-input slot-time" type="time" data-slot="${slot.id}" data-k="end" value="${escapeHtml(slot.end || "22:00")}" /></label>` +
+            `<label>마감 후 유예 <input class="hud-input slot-grace" type="number" min="0" max="240" data-slot="${slot.id}" data-k="graceMin" value="${Number(slot.graceMin) || 0}" />분</label>` +
+          `</div>` +
+          `<div class="slot-stores-label">이 시간대에 적용할 매장</div>` +
+          `<div class="slot-stores">${storeChips || '<span class="status">먼저 매장을 추가하세요.</span>'}</div>`;
+        box.appendChild(card);
+      });
+
+      // 라벨/시간 입력
+      box.querySelectorAll(".slot-label").forEach((inp) => inp.addEventListener("input", () => {
+        const s = slots.find((x) => x.id === inp.getAttribute("data-slot")); if (s) s.label = inp.value;
+      }));
+      box.querySelectorAll(".slot-time, .slot-grace").forEach((inp) => inp.addEventListener("input", () => {
+        const s = slots.find((x) => x.id === inp.getAttribute("data-slot")); if (!s) return;
+        const k = inp.getAttribute("data-k");
+        s[k] = (k === "graceMin") ? (Number(inp.value) || 0) : inp.value;
+      }));
+      // 삭제
+      box.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+        slots = slots.filter((x) => x.id !== b.getAttribute("data-del"));
+        renderSlots();
+      }));
+      // 매장 배정 (한 매장은 한 시간대에만 속하도록)
+      box.querySelectorAll('.slot-store input[type="checkbox"]').forEach((cb) => cb.addEventListener("change", () => {
+        const slotKey = cb.getAttribute("data-slot");
+        const store = cb.getAttribute("data-store");
+        if (cb.checked) {
+          // 다른 시간대에서 제거 후 이 시간대에 추가
+          slots.forEach((s) => { s.stores = (s.stores || []).filter((x) => x !== store); });
+          const s = slots.find((x) => x.id === slotKey);
+          if (s) { s.stores = s.stores || []; s.stores.push(store); }
+        } else {
+          const s = slots.find((x) => x.id === slotKey);
+          if (s) s.stores = (s.stores || []).filter((x) => x !== store);
+        }
+        renderSlots();
+      }));
+    }
+
+    $("addSlotBtn").addEventListener("click", () => {
+      slots.push({ id: slotId(), label: "", start: "09:00", end: "22:00", graceMin: 60, stores: [] });
+      renderSlots();
+    });
+
+    $("saveHoursBtn").addEventListener("click", async () => {
+      const btn = $("saveHoursBtn");
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        slots = await saveHoursRemote(slots);
+        renderSlots();
+        $("hoursHint").textContent = hasBackend() ? "구글 시트에 저장되었습니다. (모든 매장 공유)" : "이 기기에 저장되었습니다.";
+      } catch (err) {
+        $("hoursHint").textContent = "저장 실패: " + err.message + " (이 기기에는 저장됨)";
+      } finally {
+        btn.disabled = false; btn.textContent = "운영 시간 저장";
+      }
+    });
+
+    (async function init() {
+      render();
+      renderSlots();
+      if (hasBackend()) {
+        $("hint").textContent = "공유 목록 불러오는 중…";
+        stores = await loadStoresAsync();
+        render();
+      }
+      try { slots = await loadHours(); } catch (_) { slots = []; }
+      renderSlots();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#05070d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>A-log · 사업부 분석</title>
+  <link rel="stylesheet" href="theme.css?v=20" />
+</head>
+<body>
+  <div class="hud-top">
+    <div class="brand">
+      <img src="assets/alloso-logo.png" alt="Alloso" class="alloso-logo" />
+      <span class="title-sm">INSIGHT CONSOLE</span>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a class="back" href="settings.html" style="text-decoration:none;">⚙ 매장 설정</a>
+      <a class="back" href="index.html" style="text-decoration:none;">← 처음으로</a>
+    </div>
+  </div>
+
+  <div class="hud">
+
+    <!-- 상단 요약 바 -->
+    <section class="panel topbar-panel">
+      <div class="tb-stats">
+        <div class="tb-stat"><div class="n" id="sTotal">0</div><div class="l">전체 기록</div></div>
+        <div class="tb-stat"><div class="n" id="sToday">0</div><div class="l">오늘</div></div>
+        <div class="tb-stat"><div class="n" id="sStores">0</div><div class="l">참여 매장</div></div>
+        <div class="tb-stat"><div class="n v-warn" id="sIssues">0</div><div class="l">주의 기록</div></div>
+        <div class="tb-stat"><div class="n v-ok" id="srcState">LOCAL</div><div class="l">데이터 소스</div></div>
+        <div class="tb-stat"><div class="n" id="pendState">0</div><div class="l">전송 대기</div></div>
+      </div>
+      <div class="tb-scope">
+        <select class="hud-select" id="filterQuarter" title="분기 선택"></select>
+        <select class="hud-select" id="filterStore"><option value="">전체 매장</option></select>
+        <input class="hud-input" id="filterDate" placeholder="날짜 (예: 2026-10-19)" />
+        <input class="hud-input" id="searchText" placeholder="내용 검색" />
+        <button class="btn btn-ghost" id="refreshBtn" type="button">새로고침</button>
+        <button class="btn btn-ghost" id="csvBtn" type="button">CSV</button>
+      </div>
+      <div class="tb-keywords">
+        <span class="kw-label">Keywords</span>
+        <div class="hud-chips" id="keywordChips"><span class="hud-chip">—</span></div>
+      </div>
+      <div class="bars" id="trendBars" style="display:none;"></div>
+    </section>
+
+    <!-- 마인드맵 -->
+    <section class="panel map-panel" style="margin-top:16px;">
+      <div class="map-head">
+        <p class="phead" style="margin:0; border:none; padding:0;">Category Mindmap · 연관 분석</p>
+        <span id="mapCrumb" class="map-crumb"></span>
+        <button class="map-home" id="mapHomeBtn" type="button" style="display:none; margin-left:auto;">⟲ 처음으로</button>
+      </div>
+      <div id="mindmap"></div>
+      <p class="status" id="mapHint" style="text-align:center; font-size:12px;">카테고리를 누르면 좌우로 펼쳐지며 세부 → 점포까지 이어집니다</p>
+
+      <div class="top10-wrap">
+        <p class="phead" style="margin:0 0 12px;">주요 이슈 TOP 10</p>
+        <div class="top10-chart" id="top10Chart"></div>
+      </div>
+    </section>
+
+    <!-- 자동 분석 -->
+    <section class="panel" style="margin-top:16px;">
+      <p class="phead">자동 분석</p>
+      <p class="status" id="aiScope"></p>
+      <div class="hud-ai placeholder" id="ruleSummary">자동 요약을 불러오는 중…</div>
+    </section>
+
+    <!-- 전일 이슈 -->
+    <section class="panel" id="prevDayPanel" style="margin-top:16px;">
+      <div class="top10-wrap" style="margin-top:0; border-top:none; padding-top:0;">
+        <p class="phead" style="margin:0 0 4px;">전일 이슈</p>
+        <p class="status" id="prevDayScope" style="margin:0 0 10px; font-size:12px;"></p>
+        <div class="top10-chart prevday-chart" id="prevDayChart"></div>
+      </div>
+    </section>
+
+    <!-- 점포별 요약 -->
+    <section class="panel" id="storePanel" style="margin-top:16px;">
+      <div class="cat-head">
+        <span id="storeTitle">점포별 요약</span>
+        <span id="storeCountLabel" style="font-size:12px; color:var(--muted); font-weight:400;"></span>
+      </div>
+      <div id="storeCards"></div>
+    </section>
+
+    <!-- 과제 관리 -->
+    <section class="panel" id="taskPanel" style="margin-top:16px;">
+      <div class="cat-head">
+        <span>✅ 과제 관리</span>
+        <span id="taskScopeLabel" style="font-size:12px; color:var(--muted); font-weight:400;"></span>
+      </div>
+      <div class="task-tabs">
+        <button class="task-tab active" id="tabOpen" type="button">해결되지 않은 과제 <span class="cnt" id="openCnt">0</span></button>
+        <button class="task-tab" id="tabDone" type="button">해결된 과제 <span class="cnt" id="doneCnt">0</span></button>
+      </div>
+      <div id="taskList"></div>
+    </section>
+
+    <!-- 기록 목록 -->
+    <section class="panel" style="margin-top:16px;">
+      <div class="cat-head" id="catHead">
+        <span id="listTitle">전체 기록</span>
+        <span id="listCount" style="font-size:12px; color:var(--muted); font-weight:400;"></span>
+        <span class="x" id="clearCat" style="display:none;">✕ 필터 해제</span>
+      </div>
+      <div id="recordList"></div>
+      <div class="btn-row" style="justify-content:flex-start; margin-top:10px;">
+        <button class="btn btn-danger" id="clearAllBtn" type="button" style="display:none;">로컬 기록 전체 삭제</button>
+      </div>
+    </section>
+
+    <p class="foot-note" id="localNote"></p>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 플로팅: 추가 상세 분석 -->
+  <button class="fab-ai" id="fabAi" type="button" aria-label="추가 상세 분석 열기">
+    <span class="fab-ai-ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>
+        <circle cx="12" cy="12" r="4"/>
+      </svg>
+    </span>
+    <span class="fab-ai-txt">더 깊게 볼까요?</span>
+  </button>
+
+  <!-- 드로어: 추가 상세 분석 -->
+  <div class="drawer-overlay" id="aiDrawerOverlay"></div>
+  <aside class="drawer" id="aiDrawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-title">추가 상세 분석</div>
+        <div class="drawer-sub">기본 분석으로 부족할 때, Gemini 앱으로 더 깊게</div>
+      </div>
+      <button class="drawer-close" id="aiDrawerClose" type="button" aria-label="닫기">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+        <button class="help-link" id="aiGuideBtn" type="button">사용법 보기</button>
+      </div>
+      <div class="ai-step">
+        <div class="ai-step-no">1</div>
+        <div class="ai-step-body">
+          <div class="ai-step-title">분석 프롬프트 복사</div>
+          <div class="ai-step-desc">지금 보고 있는 범위의 기록으로 질문을 만들어 복사합니다.</div>
+          <div class="btn-row stack" style="margin-top:8px;">
+            <button class="btn btn-primary" id="copyPromptBtn" type="button">① 프롬프트 복사</button>
+            <a class="btn btn-ghost" href="https://gemini.google.com/app" target="_blank" rel="noopener" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Gemini 앱 열기 ↗</a>
+          </div>
+        </div>
+      </div>
+      <div class="ai-step">
+        <div class="ai-step-no">2</div>
+        <div class="ai-step-body">
+          <div class="ai-step-title">Gemini 답변을 붙여넣기</div>
+          <div class="ai-step-desc">Gemini 앱에 붙여넣고 받은 답변을 복사해, 아래 칸에 붙여넣으세요.</div>
+          <textarea class="hud-input" id="aiPaste" placeholder="여기에 Gemini 답변을 붙여넣으세요" style="min-height:120px; margin-top:8px; line-height:1.6;"></textarea>
+          <div class="btn-row stack" style="margin-top:8px;">
+            <button class="btn btn-primary" id="renderAiBtn" type="button">② 결과 표시</button>
+            <button class="btn btn-ghost" id="clearAiBtn" type="button">지우기</button>
+          </div>
+        </div>
+      </div>
+      <div class="hud-ai placeholder" id="aiSummary" style="margin-top:6px;">
+        아직 분석 결과가 없습니다. 위 ①② 순서로 진행하면 여기에 표시됩니다.
+      </div>
+    </div>
+  </aside>
+
+  <!-- Gemini 사용법 모달 -->
+  <div class="modal-overlay" id="apiHelpModal">
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" id="apiHelpClose" type="button" aria-label="닫기">✕</button>
+      <h2>🤖 Gemini 앱으로 분석하기</h2>
+      <p class="sub">API 키 없이, 회사에서 구독 중인 Gemini 앱에 복사-붙여넣기만 하면 됩니다.</p>
+      <ol class="steps-list">
+        <li><div class="st-title">① 프롬프트 복사</div><div class="st-desc">현재 범위에 맞춰 <code>① 프롬프트 복사</code>를 누르면 질문과 기록이 복사됩니다.</div></li>
+        <li><div class="st-title">Gemini 앱에 붙여넣기</div><div class="st-desc"><a href="https://gemini.google.com/app" target="_blank" rel="noopener">gemini.google.com</a>에서 붙여넣고 전송합니다.</div></li>
+        <li><div class="st-title">답변 복사</div><div class="st-desc">Gemini 답변을 전체 선택해 복사합니다.</div></li>
+        <li><div class="st-title">② 결과 붙여넣기 → 표시</div><div class="st-desc"><b style="color:var(--cyan);">결과 붙여넣기</b> 칸에 넣고 <code>② 결과 표시</code>를 누르면 정리되어 나타납니다.</div></li>
+      </ol>
+      <div class="modal-actions">
+        <a class="btn btn-primary" href="https://gemini.google.com/app" target="_blank" rel="noopener" style="text-decoration:none; display:inline-flex; align-items:center; justify-content:center;">Gemini 앱 열기</a>
+        <button class="btn btn-ghost" id="apiHelpOk" type="button">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js?v=9"></script>
+  <script src="storage.js?v=11"></script>
+  <script src="summary.js?v=8"></script>
+  <script src="classify.js?v=10"></script>
+  <script src="mindmap.js?v=15"></script>
+  <script src="gemini.js?v=8"></script>
+  <script>
+    // 접근 보호 — 인증은 키패드 화면(gate.html)에서 일원화
+    (function guard() {
+      const pin = (APP_CONFIG.dashboardPin || "").trim();
+      if (!pin) return; // 암호 미설정이면 누구나 열람
+      // 현재 PIN에 묶인 토큰이 일치할 때만 통과 (옛 '1' 플래그는 무효)
+      if (sessionStorage.getItem("girock_dash_ok") === "ok:" + pin) return;
+      sessionStorage.removeItem("girock_dash_ok");
+      location.replace("gate.html"); // 미인증이면 키패드 인증 화면으로
+      throw new Error("redirect-to-gate");
+    })();
+
+    const $ = (id) => document.getElementById(id);
+    const toast = $("toast");
+    const filterQuarter = $("filterQuarter");
+    const filterStore = $("filterStore");
+    const filterDate = $("filterDate");
+    const searchText = $("searchText");
+
+    let allRecords = [];
+    let activeCategory = null;
+    let drillWord = null;
+    let activeQuarter = (typeof currentQuarter === "function") ? currentQuarter() : "";
+
+    function showToast(type, msg) {
+      toast.className = "toast show " + type;
+      toast.textContent = msg;
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => (toast.className = "toast"), 3200);
+    }
+    function escapeHtml(s) {
+      return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+    function iconHtml(iconKey, issue) {
+      const p = (typeof niconSvg === "function") ? niconSvg(iconKey) : "";
+      return '<span class="nicon' + (issue ? ' issue' : '') + '" style="font-size:1em;vertical-align:-0.12em;"><svg viewBox="0 0 24 24" width="1em" height="1em">' + p + '</svg></span>';
+    }
+
+    $("srcState").textContent = hasBackend() ? "SHEET" : "LOCAL";
+    $("localNote").textContent = hasBackend() ? "" : "통합 조회를 하려면 config.js의 backendUrl에 구글 시트 URL을 넣으세요.";
+    if (!hasBackend()) $("clearAllBtn").style.display = "";
+
+    function scopeKey() {
+      return [activeCategory || "all", drillWord || "", filterStore.value || "", filterDate.value || "", searchText.value || ""].join("|");
+    }
+    function scopeLabelText() {
+      let s = activeCategory ? catMeta(activeCategory).name + (drillWord ? " › " + drillWord : "") : "전체 매장";
+      if (filterStore.value) s += " · " + filterStore.value;
+      return s;
+    }
+
+    function fillStoreFilter() {
+      const cur = filterStore.value;
+      filterStore.innerHTML = '<option value="">전체 매장</option>';
+      getStores().forEach((s) => {
+        const o = document.createElement("option"); o.value = s; o.textContent = s; filterStore.appendChild(o);
+      });
+      filterStore.value = cur;
+    }
+    fillStoreFilter();
+
+    // 분기 드롭다운 채우기 (서버/로컬에 존재하는 분기 목록)
+    async function fillQuarterFilter() {
+      let quarters = [];
+      try { quarters = await listQuarters(); } catch (_) { quarters = [activeQuarter]; }
+      if (!quarters.length) quarters = [activeQuarter];
+      if (!quarters.includes(activeQuarter)) activeQuarter = quarters[0];
+      filterQuarter.innerHTML = "";
+      quarters.forEach((qk) => {
+        const o = document.createElement("option");
+        o.value = qk;
+        o.textContent = quarterLabel(qk) + (qk === currentQuarter() ? " · 이번 분기" : "");
+        filterQuarter.appendChild(o);
+      });
+      filterQuarter.value = activeQuarter;
+    }
+
+    async function loadAndRender() {
+      $("recordList").innerHTML = '<div class="hud-empty"><span class="spinner"></span> 불러오는 중…</div>';
+      try { await fillQuarterFilter(); } catch (_) {}
+      try { await loadStoresAsync(); fillStoreFilter(); } catch (_) {}
+      try { allRecords = await loadRecords(activeQuarter); }
+      catch (err) { showToast("err", "불러오기 실패: " + err.message); allRecords = []; }
+      $("pendState").textContent = (typeof pendingCount === "function" ? pendingCount() : 0);
+      renderAll();
+    }
+
+    function scopeRecords() {
+      let list = allRecords.slice();
+      if (filterStore.value) list = list.filter((r) => r.store === filterStore.value);
+      const d = filterDate.value.trim();
+      if (d) list = list.filter((r) => (r.createdAt || "").slice(0, 10) === d);
+      const q = searchText.value.trim().toLowerCase();
+      if (q) list = list.filter((r) => (r.text || "").toLowerCase().includes(q));
+      return list;
+    }
+    function listedRecords() {
+      let list = scopeRecords();
+      if (activeCategory) list = recordsInCategory(list, activeCategory);
+      if (drillWord) list = list.filter((r) => (r.text || "").includes(drillWord));
+      return list;
+    }
+
+    function renderAll() {
+      renderStats(); renderMap(); renderTop10(); renderPrevDay(); renderRuleSummary();
+      renderStores(); renderTasks(); renderList(); renderAiSaved();
+    }
+
+    function renderStats() {
+      const a = analyzeRecords(scopeRecords());
+      $("sTotal").textContent = a.total;
+      $("sToday").textContent = a.todayCount;
+      $("sStores").textContent = a.storeCount;
+      $("sIssues").textContent = a.issueRecords.length;
+      const chips = $("keywordChips"); chips.innerHTML = "";
+      if (!a.topKeywords.length) chips.innerHTML = '<span class="hud-chip">—</span>';
+      else a.topKeywords.slice(0, 8).forEach(([w, c]) => {
+        const el = document.createElement("span"); el.className = "hud-chip";
+        el.innerHTML = escapeHtml(w) + " <b>" + c + "</b>"; chips.appendChild(el);
+      });
+    }
+
+    // 공통: 이슈 목록(top)을 워드클라우드로 렌더
+    function renderIssueCloud(chart, top) {
+      if (!top.length) { chart.innerHTML = '<div class="hud-empty">데이터가 없습니다.</div>'; return; }
+      const maxCount = Math.max(...top.map((t) => t.count), 1);
+      const minCount = Math.min(...top.map((t) => t.count), maxCount);
+      const range = Math.max(1, maxCount - minCount);
+      // 워드클라우드 팔레트 (이미지 느낌의 다채로운 색)
+      const palette = ["#d14b8f", "#8e5bd6", "#5b8fd6", "#e07a3f", "#d64b6b", "#6a5bd6", "#3f9e8e", "#c94fb0"];
+      // 큰 단어가 가운데로 모이도록 건수 내림차순을 가운데→바깥으로 재배치
+      const sorted = top.slice().sort((a, b) => b.count - a.count);
+      const arranged = [];
+      sorted.forEach((t, i) => { (i % 2 === 0) ? arranged.push(t) : arranged.unshift(t); });
+      // 단어별 고정 의사난수 (같은 단어는 항상 같은 위치/색)
+      const seeded = (str, salt) => {
+        let h = 2166136261 ^ salt;
+        for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+        return ((h >>> 0) % 1000) / 1000; // 0~1
+      };
+      chart.innerHTML = "";
+      arranged.forEach((t) => {
+        // 건수 비율로 글자 크기 16px ~ 54px
+        const size = Math.round(16 + ((t.count - minCount) / range) * 38);
+        const color = t.issue ? "#d64b6b" : palette[Math.floor(seeded(t.word, 7) * palette.length)];
+        // 자연스러운 흩뿌림: 상하 오프셋만 (회전 없음, transform은 hover 전용으로 비움)
+        const dy = Math.round((seeded(t.word, 3) - 0.5) * 24);  // -12 ~ +12px
+        const word = document.createElement("span");
+        word.className = "wc-word" + (t.issue ? " issue" : "");
+        word.style.fontSize = size + "px";
+        word.style.color = color;
+        word.style.marginTop = dy + "px";
+        word.textContent = t.word;
+        word.title = `${t.catName} · ${t.count}건 · ${t.stores}개 매장 · ${t.ratio}%`;
+        word.addEventListener("click", () => {
+          activeCategory = t.catKey; drillWord = t.word;
+          afterMapChange();
+          $("mindmap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+        chart.appendChild(word);
+      });
+    }
+
+    function renderTop10() {
+      renderIssueCloud($("top10Chart"), buildTopIssues(scopeRecords(), 10));
+    }
+
+    // 전일(데이터가 있는 가장 최근 날의 직전 날짜) 이슈
+    function renderPrevDay() {
+      const scoped = scopeRecords();
+      const panel = $("prevDayPanel");
+      // 기록이 있는 날짜들(YYYY-MM-DD) 내림차순
+      const days = [...new Set(scoped.map((r) => (r.createdAt || "").slice(0, 10)).filter(Boolean))]
+        .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+      if (days.length < 2) {
+        // 비교할 전일이 없으면 패널 숨김
+        panel.style.display = "none";
+        return;
+      }
+      panel.style.display = "";
+      const prevDay = days[1]; // 가장 최근 날의 직전 날
+      const prevRecords = scoped.filter((r) => (r.createdAt || "").slice(0, 10) === prevDay);
+      $("prevDayScope").textContent = prevDay + " 기준 · " + prevRecords.length + "건";
+      renderIssueCloud($("prevDayChart"), buildTopIssues(prevRecords, 10));
+    }
+
+    let prevMapLevel = 0;
+    function renderMap() {
+      const scoped = scopeRecords();
+      const mapHome = $("mapHomeBtn");
+      const crumb = $("mapCrumb");
+      const level = !activeCategory ? 0 : (!drillWord ? 1 : 2);
+      const transition = level > prevMapLevel ? "in" : (level < prevMapLevel ? "out" : null);
+      prevMapLevel = level;
+
+      if (!activeCategory) {
+        mapHome.style.display = "none";
+        crumb.innerHTML = "";
+        $("mapHint").textContent = "카테고리를 누르면 세부 분석으로 이어집니다";
+        renderMindmap($("mindmap"), buildMindmap(scoped), {
+          centerLabel: filterStore.value ? filterStore.value : "전체",
+          selectedKey: null, transition: transition, path: [],
+          onSelect: (key) => { if (!key) return; activeCategory = key; drillWord = null; afterMapChange(); }
+        });
+      } else if (!drillWord) {
+        const drill = buildCategoryDrill(scoped, activeCategory);
+        mapHome.style.display = "";
+        crumb.innerHTML = `${iconHtml(catMeta(activeCategory).icon, catMeta(activeCategory).issue)} <b>${escapeHtml(drill.catName)}</b>`;
+        $("mapHint").textContent = "세부 키워드를 누르면 점포별로 펼쳐집니다 · 중앙을 누르면 돌아갑니다";
+        renderMindmap($("mindmap"), { total: drill.total, nodes: drill.nodes }, {
+          centerLabel: drill.catName, selectedKey: null, transition: transition,
+          path: [{ label: catMeta(activeCategory).name }],
+          onSelect: (key) => { if (!key) { activeCategory = null; drillWord = null; filterStore.value = ""; afterMapChange(); return; } drillWord = key; afterMapChange(); }
+        });
+      } else {
+        const ws = buildWordStores(scoped, activeCategory, drillWord);
+        mapHome.style.display = "";
+        crumb.innerHTML = `${iconHtml(catMeta(activeCategory).icon, catMeta(activeCategory).issue)} <b>${escapeHtml(ws.catName)}</b> › <b>${escapeHtml(drillWord)}</b>`;
+        $("mapHint").textContent = "점포를 누르면 아래에서 그 점포의 기록을 볼 수 있어요 · 중앙을 누르면 돌아갑니다";
+        renderMindmap($("mindmap"), { total: ws.total, nodes: ws.nodes }, {
+          centerLabel: "› " + drillWord, selectedKey: filterStore.value || null, transition: transition,
+          path: [{ label: catMeta(activeCategory).name }, { label: drillWord }],
+          onSelect: (key) => {
+            // 코어(되돌리기): 세부 키워드 단계로 올라가며 점포 선택도 해제
+            if (!key) { drillWord = null; filterStore.value = ""; afterMapChange(); return; }
+            const picked = (filterStore.value !== key);
+            filterStore.value = picked ? key : "";
+            afterMapChange();
+            if (picked) $("storePanel").scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      }
+    }
+
+    function afterMapChange() {
+      renderStores(); renderTasks(); renderList(); renderRuleSummary(); renderMap(); renderTop10(); renderPrevDay(); renderAiSaved();
+    }
+
+    $("mapHomeBtn").addEventListener("click", () => { activeCategory = null; drillWord = null; filterStore.value = ""; renderAll(); });
+
+    function renderStores() {
+      const list = listedRecords();
+      const breakdown = buildStoreBreakdown(list);
+      const title = activeCategory
+        ? `${iconHtml("store")} 점포별 요약 · ${iconHtml(catMeta(activeCategory).icon, catMeta(activeCategory).issue)} ${escapeHtml(catMeta(activeCategory).name)}` + (drillWord ? ` › ${escapeHtml(drillWord)}` : "")
+        : `${iconHtml("store")} 점포별 요약`;
+      $("storeTitle").innerHTML = title;
+      $("storeCountLabel").textContent = breakdown.length ? `· ${breakdown.length}개 점포` : "";
+      const box = $("storeCards");
+      if (!breakdown.length) { box.innerHTML = '<div class="hud-empty">점포 데이터가 없습니다.</div>'; return; }
+      box.innerHTML = "";
+      breakdown.forEach((b) => {
+        const el = document.createElement("div");
+        el.className = "store-card";
+        el.innerHTML =
+          `<div class="sc-head"><span class="sc-name">${escapeHtml(b.store)}</span>` +
+          `<span class="sc-badge">${b.count}건</span>` +
+          (b.issues ? `<span class="sc-badge warn">주의 ${b.issues}</span>` : "") + `</div>` +
+          `<div class="sc-sum">${escapeHtml(storeSummaryLine(b))}</div>` +
+          `<div class="sc-kw">${b.keywords.map((k) => `<span class="k">${escapeHtml(k[0])} ${k[1]}</span>`).join("")}</div>`;
+        el.addEventListener("click", () => {
+          filterStore.value = b.store; renderAll();
+          $("recordList").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+        box.appendChild(el);
+      });
+    }
+
+    /* 과제 관리 */
+    const TASK_LS = "girock_tasks_v1";
+    let taskTab = "open";
+    function loadTaskState() { try { return JSON.parse(localStorage.getItem(TASK_LS) || "{}"); } catch { return {}; } }
+    function saveTaskState(st) { localStorage.setItem(TASK_LS, JSON.stringify(st)); }
+
+    function renderTasks() {
+      const st = loadTaskState();
+      const tasks = extractTasks(listedRecords());
+      $("taskScopeLabel").textContent = "· " + scopeLabelText();
+      const open = [], done = [];
+      tasks.forEach((t) => { (st[t.id] && st[t.id].done) ? done.push(t) : open.push(t); });
+      $("openCnt").textContent = open.length;
+      $("doneCnt").textContent = done.length;
+      $("tabOpen").classList.toggle("active", taskTab === "open");
+      $("tabDone").classList.toggle("active", taskTab === "done");
+      const box = $("taskList");
+      const list = taskTab === "open" ? open : done;
+      if (!list.length) { box.innerHTML = '<div class="hud-empty">' + (taskTab === "open" ? "해결되지 않은 과제가 없습니다." : "해결된 과제가 아직 없습니다.") + '</div>'; return; }
+      box.innerHTML = "";
+      list.forEach((t) => {
+        const info = st[t.id] || {};
+        const el = document.createElement("div");
+        el.className = "task-card" + (info.done ? " done" : "");
+        const scopeBadge = info.done && info.scope
+          ? `<span class="task-badge ${info.scope === "common" ? "scope-common" : "scope-store"}">${info.scope === "common" ? "공통 과제" : "매장별: " + escapeHtml(t.store)}</span>` : "";
+        el.innerHTML =
+          `<div class="tc-top">` +
+            `<div class="tc-check" data-id="${escapeHtml(t.id)}">${info.done ? "✓" : ""}</div>` +
+            `<div class="tc-body">` +
+              `<div class="tc-text${info.done ? " done" : ""}">${escapeHtml(t.text)}</div>` +
+              `<div class="tc-meta"><span class="st">${escapeHtml(t.store)}</span>` +
+              `<span class="tc-cat">${iconHtml(t.catIcon)} ${escapeHtml(t.catName)}</span>` +
+              `<span>${fmtDate(t.createdAt)}</span>${scopeBadge}</div>` +
+            `</div>` +
+          `</div>`;
+        box.appendChild(el);
+        el.querySelector(".tc-check").addEventListener("click", () => {
+          if (info.done) { const s = loadTaskState(); delete s[t.id]; saveTaskState(s); renderTasks(); }
+          else openResolvePopup(el, t);
+        });
+      });
+    }
+
+    function openResolvePopup(cardEl, t) {
+      if (cardEl.querySelector(".resolve-pop")) return;
+      const pop = document.createElement("div");
+      pop.className = "resolve-pop";
+      pop.innerHTML =
+        `<div class="q">이 과제를 어떻게 해결했나요?</div>` +
+        `<div class="opts">` +
+          `<button class="btn btn-primary" data-scope="store" type="button">🏬 ${escapeHtml(t.store)} 매장별 해결</button>` +
+          `<button class="btn btn-ghost" data-scope="common" type="button">🔗 공통 과제로 해결</button>` +
+          `<button class="btn btn-ghost" data-scope="cancel" type="button">취소</button>` +
+        `</div>`;
+      cardEl.appendChild(pop);
+      pop.querySelectorAll("[data-scope]").forEach((b) => b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const scope = b.getAttribute("data-scope");
+        if (scope === "cancel") { pop.remove(); return; }
+        const s = loadTaskState();
+        s[t.id] = { done: true, scope, at: new Date().toISOString(), store: t.store };
+        saveTaskState(s);
+        showToast("ok", "해결된 과제로 옮겼어요.");
+        renderTasks();
+      }));
+    }
+
+    $("tabOpen").addEventListener("click", () => { taskTab = "open"; renderTasks(); });
+    $("tabDone").addEventListener("click", () => { taskTab = "done"; renderTasks(); });
+
+    function renderRuleSummary() {
+      const a = analyzeRecords(listedRecords());
+      $("aiScope").textContent = "분석 범위: " + scopeLabelText() + " · " + a.total + "건";
+      $("ruleSummary").className = "hud-ai" + (a.total ? "" : " placeholder");
+      $("ruleSummary").textContent = buildRuleSummary(a);
+    }
+
+    function renderList() {
+      const list = listedRecords();
+      let title = "전체 기록";
+      if (activeCategory) title = iconHtml(catMeta(activeCategory).icon, catMeta(activeCategory).issue) + " " + escapeHtml(catMeta(activeCategory).name) + (drillWord ? " › " + escapeHtml(drillWord) : "");
+      if (filterStore.value) title += " · " + escapeHtml(filterStore.value);
+      $("listTitle").innerHTML = title;
+      $("listCount").textContent = list.length ? "· " + list.length + "건" : "";
+      $("clearCat").style.display = (activeCategory || drillWord || filterStore.value) ? "" : "none";
+      const box = $("recordList"); box.innerHTML = "";
+      if (!list.length) { box.innerHTML = '<div class="hud-empty">표시할 기록이 없습니다.</div>'; return; }
+
+      // 점포별로 취합 (접이식 그룹)
+      const groups = {};
+      list.forEach((r) => {
+        const s = r.store || "미지정";
+        (groups[s] = groups[s] || []).push(r);
+      });
+      const storeNames = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+
+      storeNames.forEach((s) => {
+        const recs = groups[s].slice().sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+        const grp = document.createElement("div");
+        grp.className = "rec-group";
+
+        const head = document.createElement("div");
+        head.className = "rec-group-head";
+        head.innerHTML =
+          `<span class="rg-caret">▸</span>` +
+          `<span class="rg-name">${escapeHtml(s)}</span>` +
+          `<span class="rg-count">${recs.length}건</span>`;
+
+        const body = document.createElement("div");
+        body.className = "rec-group-body";
+        recs.forEach((r) => {
+          const el = document.createElement("div"); el.className = "hud-rec";
+          const del = !hasBackend() ? `<span style="margin-left:auto; cursor:pointer; color:var(--danger);" data-del="${escapeHtml(r.id)}">삭제</span>` : "";
+          el.innerHTML =
+            `<div class="m"><span>${escapeHtml(r.writer || "익명")}</span><span>· ${fmtDate(r.createdAt)}</span>${del}</div>` +
+            `<div class="b">${escapeHtml(r.text || "")}</div>`;
+          body.appendChild(el);
+        });
+
+        head.addEventListener("click", () => grp.classList.toggle("open"));
+        grp.appendChild(head);
+        grp.appendChild(body);
+        box.appendChild(grp);
+      });
+
+      box.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!confirm("이 기록을 삭제할까요?")) return;
+        deleteLocal(b.getAttribute("data-del"));
+        allRecords = loadLocal(); renderAll();
+        showToast("info", "삭제했습니다.");
+      }));
+    }
+
+    /* AI 결과 (붙여넣기 저장/표시) */
+    function renderMarkdown(md) {
+      const lines = String(md).split("\n"); let html = ""; let inList = false;
+      const inline = (t) => escapeHtml(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/【(.+?)】/g, '<b style="color:var(--cyan);">【$1】</b>');
+      lines.forEach((raw) => {
+        const line = raw.trimEnd(); const bl = line.match(/^\s*[-*•]\s+(.*)$/);
+        if (bl) { if (!inList) { html += "<ul>"; inList = true; } html += "<li>" + inline(bl[1]) + "</li>"; }
+        else { if (inList) { html += "</ul>"; inList = false; } if (line.trim() === "") html += "<div style='height:6px;'></div>"; else if (/^#{1,6}\s/.test(line)) html += "<h3>" + inline(line.replace(/^#{1,6}\s/, "")) + "</h3>"; else html += "<div>" + inline(line) + "</div>"; }
+      });
+      if (inList) html += "</ul>"; return html;
+    }
+    const AI_RESULT_LS = "girock_ai_results_v1";
+    function loadAiResults() { try { return JSON.parse(localStorage.getItem(AI_RESULT_LS) || "{}"); } catch { return {}; } }
+    function saveAiResult(text) {
+      const all = loadAiResults();
+      all[scopeKey()] = { text, at: new Date().toISOString(), scope: scopeLabelText() };
+      localStorage.setItem(AI_RESULT_LS, JSON.stringify(all));
+    }
+    function renderAiSaved() {
+      const saved = loadAiResults()[scopeKey()];
+      const box = $("aiSummary");
+      if (saved && saved.text) {
+        box.className = "hud-ai";
+        box.innerHTML = '<div class="status" style="margin:0 0 8px;">이 범위의 Gemini 분석 · ' + escapeHtml(fmtDate(saved.at)) + '</div>' + renderMarkdown(saved.text);
+        $("aiPaste").value = saved.text;
+      } else {
+        box.className = "hud-ai placeholder";
+        box.textContent = "이 범위는 아직 Gemini 분석 결과가 없습니다. 위 ①② 순서로 진행하세요.";
+        $("aiPaste").value = "";
+      }
+    }
+    async function copyText(t, ok) {
+      try { await navigator.clipboard.writeText(t); showToast("ok", ok); }
+      catch { const w = window.open("", "_blank"); if (w) w.document.write("<pre>" + escapeHtml(t) + "</pre>"); }
+    }
+
+    /* 이벤트 */
+    $("copyPromptBtn").addEventListener("click", () => {
+      const list = listedRecords().length ? listedRecords() : scopeRecords();
+      if (!list.length) { showToast("err", "복사할 기록이 없습니다."); return; }
+      copyText(buildPrompt(list, scopeLabelText()), "프롬프트를 복사했어요. Gemini 앱에 붙여넣으세요.");
+    });
+    $("renderAiBtn").addEventListener("click", () => {
+      const text = $("aiPaste").value.trim();
+      if (!text) { showToast("err", "Gemini 답변을 먼저 붙여넣으세요."); return; }
+      saveAiResult(text); renderAiSaved();
+      $("aiSummary").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      showToast("ok", "분석 결과를 표시했어요.");
+    });
+    $("clearAiBtn").addEventListener("click", () => {
+      $("aiPaste").value = "";
+      const all = loadAiResults(); delete all[scopeKey()];
+      localStorage.setItem(AI_RESULT_LS, JSON.stringify(all));
+      renderAiSaved();
+      showToast("info", "이 범위의 분석 결과를 지웠어요.");
+    });
+
+    $("csvBtn").addEventListener("click", () => {
+      const list = listedRecords();
+      if (!list.length) { showToast("err", "내보낼 기록이 없습니다."); return; }
+      const blob = new Blob([recordsToCsv(list)], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob); const a = document.createElement("a");
+      a.href = url; a.download = "알로소_기록_" + todayStr() + ".csv"; a.click(); URL.revokeObjectURL(url);
+      showToast("ok", list.length + "건 CSV 저장됨.");
+    });
+    $("clearAllBtn").addEventListener("click", () => { if (!confirm("이 브라우저의 모든 기록을 삭제할까요?")) return; clearLocal(); activeCategory = null; drillWord = null; loadAndRender(); showToast("info", "로컬 기록 전체 삭제됨."); });
+    $("clearCat").addEventListener("click", () => { activeCategory = null; drillWord = null; filterStore.value = ""; renderAll(); });
+
+    filterQuarter.addEventListener("change", async () => {
+      activeQuarter = filterQuarter.value || currentQuarter();
+      // 분기가 바뀌면 드릴다운/매장 필터 초기화 후 해당 분기만 다시 로드
+      activeCategory = null; drillWord = null; filterStore.value = "";
+      $("recordList").innerHTML = '<div class="hud-empty"><span class="spinner"></span> 불러오는 중…</div>';
+      try { allRecords = await loadRecords(activeQuarter); }
+      catch (err) { showToast("err", "불러오기 실패: " + err.message); allRecords = []; }
+      renderAll();
+    });
+    filterStore.addEventListener("change", renderAll);
+    filterDate.addEventListener("input", renderAll);
+    searchText.addEventListener("input", renderAll);
+    $("refreshBtn").addEventListener("click", loadAndRender);
+
+    /* 사용법 모달 */
+    const apiHelpModal = $("apiHelpModal");
+    function openApiHelp() { apiHelpModal.classList.add("show"); }
+    function closeApiHelp() { apiHelpModal.classList.remove("show"); }
+    $("aiGuideBtn").addEventListener("click", openApiHelp);
+    $("apiHelpClose").addEventListener("click", closeApiHelp);
+    $("apiHelpOk").addEventListener("click", closeApiHelp);
+    apiHelpModal.addEventListener("click", (e) => { if (e.target === apiHelpModal) closeApiHelp(); });
+
+    /* 드로어 */
+    const aiDrawer = $("aiDrawer");
+    const aiDrawerOverlay = $("aiDrawerOverlay");
+    function openDrawer() { aiDrawer.classList.add("open"); aiDrawer.setAttribute("aria-hidden", "false"); aiDrawerOverlay.classList.add("show"); $("fabAi").classList.add("hide"); renderAiSaved(); }
+    function closeDrawer() { aiDrawer.classList.remove("open"); aiDrawer.setAttribute("aria-hidden", "true"); aiDrawerOverlay.classList.remove("show"); $("fabAi").classList.remove("hide"); }
+    $("fabAi").addEventListener("click", openDrawer);
+    $("aiDrawerClose").addEventListener("click", closeDrawer);
+    aiDrawerOverlay.addEventListener("click", closeDrawer);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeApiHelp(); closeDrawer(); } });
+
+    loadAndRender();
+  </script>
+</body>
+</html>

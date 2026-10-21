@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#05070d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>A-log · 기록하기</title>
+  <link rel="stylesheet" href="theme.css?v=24" />
+</head>
+<body>
+  <div class="mini-top" id="miniTop" hidden>
+    <a class="back" href="index.html">← 처음으로</a>
+    <img src="assets/alloso-logo.png" alt="Alloso" class="alloso-logo" />
+    <span style="width:72px;"></span>
+  </div>
+
+  <div class="stage stage-record">
+
+    <!-- STEP 2: 매장 + 작성자 선택 (진입 시 첫 화면) -->
+    <section class="step" id="step2">
+      <p class="eyebrow">STEP 1 / 3</p>
+      <h1 class="title">어느 <span class="accent">매장</span>인가요?</h1>
+      <p class="subtitle">매장과 오늘의 기록자를 골라주세요.</p>
+
+      <!-- 안내 (맨 위) : 각각 카드박스 -->
+      <div class="consent-box" id="consentPrivacy">
+        <div class="consent-title">개인정보 및 음성데이터 보호</div>
+        <div class="consent-body">
+          <p>작성자의 인적사항 및 음성 오디오 파일은 일체 저장되지 않으며,<br />변환된 텍스트만 지점 보고서로 제출됩니다.</p>
+          <p>동의하지 않으실 경우, 텍스트 직접 입력 방식으로<br />보고를 작성하실 수 있습니다.</p>
+        </div>
+      </div>
+
+      <div class="consent-box" id="consentDeadline">
+        <div class="consent-title">마감 보고 이용 안내</div>
+        <div class="consent-body">
+          <p>일보고는 근무시간 내(마감 전) 완료가 원칙입니다.</p>
+          <p>바쁜 마감 현장을 배려하여 퇴근 후 1시간까지<br />보고서 작성이 가능하도록 열어두었습니다.</p>
+          <p>다만 이는 작성 편의를 위한 여유 시간으로 제공되는 시스템 운영 방식이오니,<br />원활한 마감을 위해 정규 근무시간 내 작성을 권장합니다.</p>
+        </div>
+      </div>
+
+      <div style="text-align:left; margin:22px 0 22px;">
+        <label class="label">매장 선택</label>
+        <select class="store-select" id="storeSelect"></select>
+      </div>
+
+      <div style="text-align:left; margin-bottom:24px;">
+        <label class="label">기록자 (익명 캐릭터)</label>
+        <div class="avatar-grid" id="avatarGrid"></div>
+      </div>
+
+      <div class="btn-row stack">
+        <button class="btn btn-primary btn-lg" id="agreeBtn" type="button">동의하고 음성으로 기록</button>
+        <button class="btn btn-ghost" id="disagreeBtn" type="button">동의하지 않습니다 · 텍스트로 입력</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: 녹음 + 실시간 텍스트 -->
+    <section class="step" id="step3" hidden>
+      <div class="meta-badge" id="recMeta"></div>
+
+      <div class="orb-wrap readonly active" id="recOrb">
+        <div class="ring r1"></div>
+        <div class="ring ticks"></div>
+        <div class="ring r2"></div>
+        <div class="ring r3"></div>
+        <canvas class="viz" id="viz"></canvas>
+        <div class="core"><span class="emoji" id="recEmoji">🎙️</span></div>
+      </div>
+
+      <p class="status live" id="recStatus">듣고 있어요… 편하게 말씀하세요</p>
+
+      <div class="transcript placeholder" id="transcript">말을 시작하면 여기에 실시간으로 글자가 나타납니다.</div>
+
+      <div id="speechUnsupported" class="notice" hidden>
+        이 브라우저는 음성인식을 지원하지 않습니다. 다음 화면에서 직접 입력하실 수 있어요. (크롬 권장)
+      </div>
+
+      <div class="btn-row" style="margin-top:22px;">
+        <button class="btn btn-primary btn-lg" id="finishBtn" type="button">■ 마침</button>
+      </div>
+    </section>
+
+    <!-- STEP 4: 텍스트 확인/수정 -->
+    <section class="step" id="step4" hidden>
+      <p class="eyebrow">STEP 3 / 3</p>
+      <h1 class="title">내용을 <span class="accent">확인</span>해주세요</h1>
+      <p class="subtitle">필요하면 직접 고칠 수 있어요.</p>
+
+      <div class="meta-badge" id="confirmMeta"></div>
+
+      <textarea class="edit-area" id="editArea" placeholder="기록 내용"></textarea>
+      <p class="status" id="charCount">0자</p>
+
+      <div class="btn-row stack" style="margin-top:18px;">
+        <button class="btn btn-primary btn-lg" id="saveBtn" type="button">최종 저장</button>
+        <button class="btn btn-ghost" id="againBtn" type="button">다시 녹음</button>
+      </div>
+    </section>
+
+    <!-- STEP 5: 완료 -->
+    <section class="step" id="step5" hidden>
+      <div class="done-check">✓</div>
+      <h1 class="title">기록 <span class="accent">완료</span></h1>
+      <p class="subtitle" id="doneMsg">오늘 하루를 남겨주셔서 고마워요.</p>
+      <div class="btn-row stack">
+        <button class="btn btn-primary btn-lg" id="newBtn" type="button">새 기록 작성</button>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="config.js?v=9"></script>
+  <script src="storage.js?v=11"></script>
+  <script src="visualizer.js?v=8"></script>
+  <script>
+    const AVATARS = ["🦊", "🐼", "🐯", "🐱", "🐶", "🦁", "🐧", "🐨", "🐸", "🦉", "🐻", "🐰"];
+    let selectedStore = "";
+    let selectedAvatar = AVATARS[0];
+    let baseText = "";
+    let finalText = "";
+    let currentStep = 2;
+
+    const $ = (id) => document.getElementById(id);
+    const steps = { 2: $("step2"), 3: $("step3"), 4: $("step4"), 5: $("step5") };
+    const miniTop = $("miniTop");
+    const toast = $("toast");
+
+    function showStep(n) {
+      Object.values(steps).forEach((s) => (s.hidden = true));
+      steps[n].hidden = false;
+      currentStep = n;
+      miniTop.hidden = (n === 5);
+      window.scrollTo({ top: 0 });
+    }
+    function showToast(type, msg) {
+      toast.className = "toast show " + type;
+      toast.textContent = msg;
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => (toast.className = "toast"), 3200);
+    }
+    function escapeHtml(s) {
+      return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // 매장 목록
+    const storeSelect = $("storeSelect");
+    function fillStores(list) {
+      const prev = storeSelect.value;
+      storeSelect.innerHTML = "";
+      list.forEach((s) => {
+        const o = document.createElement("option");
+        o.value = s; o.textContent = s;
+        storeSelect.appendChild(o);
+      });
+      const lastStore = localStorage.getItem("girock_last_store");
+      if (prev && list.includes(prev)) storeSelect.value = prev;
+      else if (lastStore && list.includes(lastStore)) storeSelect.value = lastStore;
+      selectedStore = storeSelect.value || list[0] || "";
+    }
+    fillStores(getStores());
+    storeSelect.addEventListener("change", () => (selectedStore = storeSelect.value));
+    if (hasBackend()) { loadStoresAsync().then((list) => fillStores(list)).catch(() => {}); }
+
+    // 작성자 아바타
+    const avatarGrid = $("avatarGrid");
+    const lastAvatar = localStorage.getItem("girock_last_avatar");
+    if (lastAvatar && AVATARS.includes(lastAvatar)) selectedAvatar = lastAvatar;
+    AVATARS.forEach((a) => {
+      const el = document.createElement("div");
+      el.className = "avatar" + (a === selectedAvatar ? " selected" : "");
+      el.textContent = a;
+      el.addEventListener("click", () => {
+        selectedAvatar = a;
+        [...avatarGrid.children].forEach((c) => c.classList.remove("selected"));
+        el.classList.add("selected");
+      });
+      avatarGrid.appendChild(el);
+    });
+
+    // 음성인식
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let recording = false;
+    const transcriptEl = $("transcript");
+    const recStatus = $("recStatus");
+
+    function setTranscript(confirmed, interim) {
+      if (!confirmed && !interim) {
+        transcriptEl.className = "transcript placeholder";
+        transcriptEl.textContent = "말을 시작하면 여기에 실시간으로 글자가 나타납니다.";
+        return;
+      }
+      transcriptEl.className = "transcript";
+      transcriptEl.innerHTML = escapeHtml(confirmed) + (interim ? ' <span class="interim">' + escapeHtml(interim) + "</span>" : "");
+      transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    }
+
+    if (!SR) {
+      $("speechUnsupported").hidden = false;
+    } else {
+      recognition = new SR();
+      recognition.lang = "ko-KR";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = (e) => {
+        let finalChunk = "", interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const txt = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalChunk += txt; else interim += txt;
+        }
+        if (finalChunk) baseText = (baseText + " " + finalChunk).trim();
+        setTranscript(baseText, interim);
+      };
+      recognition.onerror = (e) => {
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+          recStatus.textContent = "마이크 권한이 필요해요. 주소창의 마이크 아이콘에서 허용해주세요.";
+          recStatus.classList.remove("live");
+        }
+      };
+      recognition.onend = () => { if (recording) { try { recognition.start(); } catch (_) {} } };
+    }
+
+    const viz = createVisualizer($("viz"));
+    async function startRecording() {
+      baseText = "";
+      setTranscript("", "");
+      recStatus.textContent = "듣고 있어요… 편하게 말씀하세요";
+      recStatus.classList.add("live");
+      $("recOrb").classList.add("active");
+      recording = true;
+      if (recognition) { try { recognition.start(); } catch (_) {} }
+      viz.start();
+    }
+    function stopRecording() {
+      recording = false;
+      if (recognition) { try { recognition.stop(); } catch (_) {} }
+      viz.stop();
+      $("recOrb").classList.remove("active");
+    }
+
+    // 운영 시간대 로드 (백엔드/캐시)
+    let operatingSlots = [];
+    (async function () {
+      try { operatingSlots = await loadHours(); } catch (_) { operatingSlots = []; }
+    })();
+
+    // 지금 이 매장이 보고 가능한 시간인지 확인. 닫혀 있으면 안내 후 false
+    function ensureOperatingOpen() {
+      const r = checkOperatingHours(selectedStore, operatingSlots, new Date());
+      if (r.allowed) return true;
+      const s = r.slot;
+      const win = s ? `${s.start}~${s.end} (마감 후 ${s.graceMin || 0}분 유예)` : "";
+      showToast("err", `지금은 ${escapeHtml(selectedStore)} 보고 가능 시간이 아닙니다. 운영시간: ${win}`);
+      return false;
+    }
+
+    // 이번 보고의 동의 여부 (기록 저장 시 함께 저장됨)
+    let agreedChoice = false;
+
+    // STEP2 → STEP3 (동의: 음성 기록)
+    $("agreeBtn").addEventListener("click", () => {
+      if (!ensureOperatingOpen()) return;
+      agreedChoice = true;
+      $("recMeta").innerHTML = `<span>${escapeHtml(selectedAvatar)}</span> <b>${escapeHtml(selectedStore)}</b>`;
+      $("recEmoji").textContent = selectedAvatar;
+      showStep(3);
+      startRecording();
+    });
+
+    // STEP2 → STEP4 (비동의: 텍스트 직접 입력)
+    $("disagreeBtn").addEventListener("click", () => {
+      if (!ensureOperatingOpen()) return;
+      agreedChoice = false;
+      baseText = "";
+      finalText = "";
+      $("editArea").value = "";
+      $("confirmMeta").innerHTML = `<span>${escapeHtml(selectedAvatar)}</span> <b>${escapeHtml(selectedStore)}</b>`;
+      updateCharCount();
+      // 비동의 모드: '다시 녹음' 버튼 숨김
+      $("againBtn").style.display = "none";
+      showStep(4);
+      $("editArea").focus();
+    });
+
+    // STEP3 마침 → STEP4
+    $("finishBtn").addEventListener("click", () => {
+      stopRecording();
+      finalText = baseText.trim();
+      $("editArea").value = finalText;
+      $("confirmMeta").innerHTML = `<span>${escapeHtml(selectedAvatar)}</span> <b>${escapeHtml(selectedStore)}</b>`;
+      $("againBtn").style.display = ""; // 음성 모드에서는 '다시 녹음' 표시
+      updateCharCount();
+      showStep(4);
+      if (!finalText) showToast("info", "인식된 내용이 없어요. 직접 입력하거나 다시 녹음해주세요.");
+    });
+
+    const editArea = $("editArea");
+    function updateCharCount() { $("charCount").textContent = editArea.value.trim().length.toLocaleString() + "자"; }
+    editArea.addEventListener("input", updateCharCount);
+
+    $("againBtn").addEventListener("click", () => { showStep(3); startRecording(); });
+
+    let saving = false;
+    $("saveBtn").addEventListener("click", async () => {
+      if (saving) return;
+      const text = editArea.value.trim();
+      if (text.length < 5) { showToast("err", "내용이 너무 짧아요. 조금만 더 적어주세요."); return; }
+      saving = true;
+      const btn = $("saveBtn");
+      btn.disabled = true; btn.textContent = "저장 중…";
+      localStorage.setItem("girock_last_store", selectedStore);
+      localStorage.setItem("girock_last_avatar", selectedAvatar);
+      try {
+        if (hasBackend() && pendingCount() > 0) { await flushPending(); }
+        const result = await saveRecord({ store: selectedStore, writer: selectedAvatar + " 익명", text: text, agreed: agreedChoice });
+        $("doneMsg").textContent = result.queued
+          ? "지금은 연결이 안 되어 기기에 안전하게 담아뒀어요. 연결되면 자동 전송됩니다."
+          : "오늘 하루를 남겨주셔서 고마워요.";
+        showStep(5);
+      } catch (err) {
+        showToast("err", "저장 실패: " + err.message);
+      } finally {
+        saving = false; btn.disabled = false; btn.textContent = "최종 저장";
+      }
+    });
+
+    $("newBtn").addEventListener("click", () => { baseText = ""; finalText = ""; $("againBtn").style.display = ""; showStep(2); });
+    window.addEventListener("beforeunload", () => { if (recording) stopRecording(); });
+
+    showStep(2);
+  </script>
+</body>
+</html>

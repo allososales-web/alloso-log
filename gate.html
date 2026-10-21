@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#05070d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>A-log · 사업부 인증</title>
+  <link rel="stylesheet" href="theme.css?v=20" />
+</head>
+<body>
+  <a class="corner-link" href="index.html">← 처음으로</a>
+
+  <div class="stage">
+    <section class="step" style="max-width:360px;">
+      <div class="gate-lock" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10" width="16" height="10" rx="2"/>
+          <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+          <circle cx="12" cy="15" r="1.2"/>
+        </svg>
+      </div>
+      <p class="eyebrow" style="letter-spacing:4px;">INSIGHT CONSOLE</p>
+      <h1 class="title" style="font-size:clamp(26px,7vw,36px);">사업부 <span class="accent">인증</span></h1>
+      <p class="subtitle">접근 암호를 입력하세요.</p>
+
+      <div class="pin-dots" id="pinDots" aria-hidden="true"></div>
+      <p class="gate-msg" id="msg"></p>
+
+      <div class="keypad" id="keypad">
+        <button class="key" data-k="1" type="button">1</button>
+        <button class="key" data-k="2" type="button">2</button>
+        <button class="key" data-k="3" type="button">3</button>
+        <button class="key" data-k="4" type="button">4</button>
+        <button class="key" data-k="5" type="button">5</button>
+        <button class="key" data-k="6" type="button">6</button>
+        <button class="key" data-k="7" type="button">7</button>
+        <button class="key" data-k="8" type="button">8</button>
+        <button class="key" data-k="9" type="button">9</button>
+        <button class="key key-ghost" data-k="clear" type="button">C</button>
+        <button class="key" data-k="0" type="button">0</button>
+        <button class="key key-ghost" data-k="del" type="button">⌫</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="config.js?v=9"></script>
+  <script>
+    var PIN = (APP_CONFIG.dashboardPin || "").trim();
+    var msg = document.getElementById("msg");
+    var dots = document.getElementById("pinDots");
+    var LEN = PIN.length || 4;
+    var entered = "";
+
+    // 현재 PIN에 묶인 인증 토큰 (PIN이 바뀌면 기존 세션 자동 무효화)
+    var AUTH_TOKEN = "ok:" + PIN;
+
+    if (!PIN) { location.replace("dashboard.html"); }
+    // 저장된 토큰이 '현재 PIN' 기준으로 유효할 때만 통과 (옛 '1' 플래그는 무효)
+    else if (sessionStorage.getItem("girock_dash_ok") === AUTH_TOKEN) { location.replace("dashboard.html"); }
+    else { sessionStorage.removeItem("girock_dash_ok"); }
+
+    function renderDots() {
+      dots.innerHTML = "";
+      for (var i = 0; i < LEN; i++) {
+        var d = document.createElement("span");
+        d.className = "pin-dot" + (i < entered.length ? " on" : "");
+        dots.appendChild(d);
+      }
+    }
+    function shake(t) {
+      msg.textContent = t;
+      dots.classList.remove("err");
+      void dots.offsetWidth;
+      dots.classList.add("err");
+    }
+    function verify() {
+      if (entered === PIN) {
+        sessionStorage.setItem("girock_dash_ok", AUTH_TOKEN);
+        msg.textContent = "";
+        dots.classList.add("ok");
+        setTimeout(function () { location.href = "dashboard.html"; }, 220);
+      } else {
+        shake("암호가 일치하지 않습니다.");
+        entered = "";
+        renderDots();
+      }
+    }
+    function press(k) {
+      if (k === "clear") { entered = ""; msg.textContent = ""; renderDots(); return; }
+      if (k === "del") { entered = entered.slice(0, -1); msg.textContent = ""; renderDots(); return; }
+      if (entered.length >= LEN) return;
+      entered += k;
+      renderDots();
+      if (entered.length === LEN) setTimeout(verify, 120);
+    }
+
+    document.getElementById("keypad").addEventListener("click", function (e) {
+      var b = e.target.closest(".key");
+      if (b) press(b.getAttribute("data-k"));
+    });
+    document.addEventListener("keydown", function (e) {
+      if (/^[0-9]$/.test(e.key)) press(e.key);
+      else if (e.key === "Backspace") press("del");
+      else if (e.key === "Enter" && entered.length) verify();
+    });
+
+    renderDots();
+  </script>
+</body>
+</html>
