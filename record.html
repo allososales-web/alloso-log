@@ -209,6 +209,7 @@
       recognition.lang = "ko-KR";
       recognition.continuous = true;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 1; // 후보 1개만 → 처리 부담 감소
       recognition.onresult = (e) => {
         let finalChunk = "", interim = "";
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -222,9 +223,19 @@
         if (e.error === "not-allowed" || e.error === "service-not-allowed") {
           recStatus.textContent = "마이크 권한이 필요해요. 주소창의 마이크 아이콘에서 허용해주세요.";
           recStatus.classList.remove("live");
+          recording = false;
         }
+        // no-speech / network / aborted 등은 onend 재시작 로직이 이어받음
       };
-      recognition.onend = () => { if (recording) { try { recognition.start(); } catch (_) {} } };
+      // 모바일에서는 인식기가 자주 자동 종료됨 → 끊김 없이 바로 재시작 (실패 시 재시도)
+      recognition.onend = () => {
+        if (!recording) return;
+        const tryRestart = (left) => {
+          try { recognition.start(); }
+          catch (_) { if (left > 0) setTimeout(() => tryRestart(left - 1), 250); }
+        };
+        tryRestart(3);
+      };
     }
 
     const viz = createVisualizer($("viz"));
